@@ -1,5 +1,3 @@
-    'schema': os.getenv('SNOWFLAKE_SCHEMA'), 'warehouse': 
-    os.getenv('SNOWFLAKE_WAREHOUSE')
 import streamlit as st
 import numpy as np
 import pandas as pd
