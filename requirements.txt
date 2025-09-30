@@ -1,5 +1,4 @@
 streamlit
 anthropic
 pandas
-snowflake-connector-python
 python-dotenv
