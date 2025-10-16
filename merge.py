@@ -10,12 +10,16 @@ import hashlib
 import anthropic
 import os
 from dotenv import load_dotenv
+from database import SessionLocal, create_user, get_user_by_username, create_property, get_user_properties
 
 # Load environment variables
 load_dotenv()
 
 # Configuration using environment variables
 CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 st.set_page_config(
     page_title="RealtyXperience - AI-Powered Real Estate Platform",
@@ -527,51 +531,81 @@ def show_login_signup():
     st.title("Welcome to RealtyXperience")
     st.markdown("*Your AI-Powered Real Estate Platform*")
     
-    tab1, tab2 = st.tabs(["Login", "Create Account"])
+                                                                               
+
+tab1, tab2 = st.tabs(["Login", "Sign Up"])
+
     
-    with tab1:
-        st.subheader("Login to Your Account")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+with tab1:
+        st.subheader("Login")
         
-        if st.button("Login", type="primary"):
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
+        
+        if st.button("Login"):
             if not username or not password:
-                st.error("Please enter both username and password")
+                st.error("Please enter username and password")
             else:
-                success, message = UserAuth.login(username, password)
-                if success:
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
+                db = SessionLocal()
+                try:
+                    # Find user in database
+                    user = get_user_by_username(db, username.strip().lower())
+                    
+                    if not user:
+                        st.error("❌ Username not found! Please check your username or sign up.")
+                    elif user.password != hash_password(password):
+                        st.error("❌ Incorrect password!")
+                    else:
+                        # Login successful
+                        st.session_state.logged_in = True
+                        st.session_state.current_user_id = user.id
+                        st.session_state.current_user = user.username
+                        st.session_state.username = user.username
+                        st.session_state.email = user.email
+                        st.session_state.user_type = user.user_type
+                        st.session_state.test_group = user.test_group
+                        
+                        st.success(f"✅ Welcome back, {user.username}!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Login error: {e}")
+                finally:
+                    db.close()
     
-    with tab2:
-        st.subheader("Create New Account")
-        new_username = st.text_input("Choose Username")
-        new_password = st.text_input("Password", type="password", key="new_pass")
-        confirm_password = st.text_input("Confirm Password", type="password")
-        full_name = st.text_input("Full Name")
-        email = st.text_input("Email")
-        phone = st.text_input("Phone Number")
-        user_type = st.selectbox("I am a:", ["tenant", "host", "agent", "investor", "land_developer"])
+with tab2:
+        st.subheader("Create Account")
         
-        agree_terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
+        new_username = st.text_input("Username", key="signup_username")
+        new_email = st.text_input("Email", key="signup_email")
+        new_password = st.text_input("Password", type="password", key="signup_password")
+        user_type = st.selectbox("I am a:", ["Agent", "Landlord", "Tenant", "Investor"])
         
-        if st.button("Create Account", type="primary"):
-            if not all([new_username, new_password, full_name, email, phone]):
+        if st.button("Create Account"):
+            if not new_username or not new_email or not new_password:
                 st.error("Please fill in all fields")
-            elif new_password != confirm_password:
-                st.error("Passwords do not match")
-            elif not agree_terms:
-                st.error("Please agree to the terms")
             else:
-                success, message = UserAuth.create_account(
-                    new_username, new_password, email, phone, user_type, full_name
-                )
-                if success:
-                    st.success(message)
-                else:
-                    st.error(message)
+                db = SessionLocal()
+                try:
+                    # Check if username already exists
+                    existing_user = get_user_by_username(db, new_username.strip().lower())
+                    
+                    if existing_user:
+                        st.error("Username already exists! Please choose another.")
+                    else:
+                        # Create user in database
+                        user = create_user(
+                            db,
+                            username=new_username.strip().lower(),
+                            email=new_email.strip().lower(),
+                            password=hash_password(new_password),
+                            user_type=user_type.lower()
+                        )
+                        st.success(f"✅ Account created successfully! Welcome {user.username}!")
+                        st.info("👉 Please go to the Login tab to sign in")
+                except Exception as e:
+                    st.error(f"Error creating account: {e}")
+                finally:
+                    db.close()
 
 def show_portal_selection():
     st.title("Welcome to RealtyXperience")
