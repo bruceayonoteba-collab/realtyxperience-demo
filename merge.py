@@ -533,10 +533,10 @@ def show_login_signup():
     
                                                                                
 
-tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
 
     
-with tab1:
+    with tab1:
         st.subheader("Login")
         
         username = st.text_input("Username", key="login_username")
@@ -572,7 +572,7 @@ with tab1:
                 finally:
                     db.close()
     
-with tab2:
+    with tab2:
         st.subheader("Create Account")
         
         new_username = st.text_input("Username", key="signup_username")
@@ -630,21 +630,9 @@ def show_portal_selection():
         
         st.markdown("---")
         
-        # Land Portal Button
-        if st.button("🌍 Land Portal", key="land_portal", use_container_width=True):
-            st.session_state.portal_selection = "land"
-            st.rerun()
-            
-        st.markdown("**Land Portal Features:**")
-        st.write("• Commercial, Residential & Industrial Land")
-        st.write("• LANDLORD AI Assistant for Land Investment")
-        st.write("• Smart Land Discovery & Matching")
-        st.write("• Development Planning & Documentation")
-
 def show_mr_x_chat():
     st.header("MR X - AI Property Assistant")
-    st.markdown("*Your intelligent guide powered by Snowflake knowledge database*")
-    
+    st.markdown("*Your intelligent AI property assistant*")    
     # Database connection status
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -710,8 +698,7 @@ def show_mr_x_chat():
 
 def show_landlord_chat():
     st.header("LANDLORD - AI Land Investment Assistant")
-    st.markdown("*Your strategic advisor powered by Snowflake knowledge database*")
-    
+    st.markdown("*Your intelligent AI land investment assistant*")    
     # Database connection status
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -807,7 +794,7 @@ def show_property_search():
                 filter_beds = st.selectbox("Bedrooms", ["All", "1", "2", "3", "4", "5+"])
                 max_budget = st.number_input("Max Budget (₦)", min_value=0, value=0, help="0 = no limit")
             with col3:
-                min_area = st.number_input("Min Area (sqm)", min_value=0, value=0)
+                filter_property_type = st.selectbox("Property Type", ["All", "Apartment", "Duplex", "Bungalow", "Mansion", "Penthouse"])
                 location_filter = st.selectbox("Location", ["All", "Ikoyi", "Lekki Phase 1", "Yaba", "Maitama", "Wuse II"])
             with col4:
                 required_amenities = st.multiselect("Must Have", ["Security", "Generator", "Pool", "Gym", "Parking", "Garden"])
@@ -838,9 +825,9 @@ def show_property_search():
                           (p.get("rent_monthly") and p["rent_monthly"] <= max_budget) or
                           (p.get("sale_price") and p["sale_price"] <= max_budget)]
             
-            if min_area > 0:
-                filtered = [p for p in filtered if p.get("area_sqm", 0) >= min_area]
-            
+            if filter_property_type != "All":
+                filtered = [p for p in filtered if p.get("property_type") == filter_property_type]  
+          
             if required_amenities:
                 filtered = [p for p in filtered if all(amenity in p.get("amenities", []) for amenity in required_amenities)]
             
@@ -1095,19 +1082,14 @@ def show_property_upload_form():
             bathrooms = st.number_input("Bathrooms*", min_value=1, max_value=10, value=2)
         
         with col2:
-            area_sqm = st.number_input("Area (Square Meters)*", min_value=20.0, value=120.0)
             year_built = st.number_input("Year Built*", min_value=1950, max_value=2024, value=2020)
             property_type = st.selectbox("Property Type*", ["Apartment", "Duplex", "Bungalow", "Mansion", "Penthouse"])
-            furnished = st.selectbox("Furnishing", ["Unfurnished", "Semi-Furnished", "Fully Furnished"])
         
         st.subheader("Pricing")
         col1, col2 = st.columns(2)
         
         with col1:
             rent_monthly = st.number_input("Monthly Rent (₦)", min_value=0, value=0, help="Leave as 0 if not for rent")
-        
-        with col2:
-            sale_price = st.number_input("Sale Price (₦)", min_value=0, value=0, help="Leave as 0 if not for sale")
         
         st.subheader("Amenities & Features")
         amenity_options = [
@@ -1144,8 +1126,6 @@ def show_property_upload_form():
             required_fields = [property_name, city, location, bedrooms, bathrooms, owner_contact, description]
             if not all(required_fields):
                 st.error("Please fill in all required fields marked with *")
-            elif rent_monthly == 0 and sale_price == 0:
-                st.error("Please specify either rental price or sale price (or both)")
             elif not all([property_documents, marketing_consent, terms_agreement]):
                 st.error("Please agree to all required terms and conditions")
             else:
@@ -1155,12 +1135,9 @@ def show_property_upload_form():
                     "location": location,
                     "bedrooms": int(bedrooms),
                     "bathrooms": int(bathrooms),
-                    "area_sqm": float(area_sqm),
                     "year_built": int(year_built),
                     "property_type": property_type,
-                    "furnished": furnished,
                     "rent_monthly": int(rent_monthly) if rent_monthly > 0 else None,
-                    "sale_price": int(sale_price) if sale_price > 0 else None,
                     "amenities": selected_amenities,
                     "description": description,
                     "owner_contact": owner_contact,
@@ -1544,22 +1521,6 @@ def show_land_investor_dashboard():
         st.metric("Land ROI This Year", "18.7%")
     with col4:
         st.metric("Land Plots Owned", "15")
-    
-    st.info("Land investor analytics dashboard coming soon!")
-
-def show_general_property_dashboard():
-    st.subheader("Your Property Experience Dashboard")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.info("**Recent Property Searches**\n\n• 3BR apartments in Lekki\n• Investment properties\n• Luxury homes in Ikoyi")
-    
-    with col2:
-        st.success("**Saved Properties**\n\n• Luxury 3BR Apartment - Ikoyi\n• Modern Duplex - Lekki\n• Executive Villa - Maitama")
-    
-    with col3:
-        st.warning("**Property Alerts**\n\n• New properties in Lekki\n• Price drops in preferred areas\n• Investment opportunities")
 
 def show_general_land_dashboard():
     st.subheader("Your Land Investment Dashboard")
@@ -1576,10 +1537,6 @@ def show_general_land_dashboard():
         st.warning("**Land Market Alerts**\n\n• New land in growth corridors\n• Price opportunities\n• Development zone updates")
 
 def main_app():
-    if not st.session_state.current_user:
-        show_login_signup()
-        return
-    
     if not st.session_state.portal_selection:
         show_portal_selection()
         return
@@ -1598,13 +1555,6 @@ def main_app():
             st.success("🤖 AI Assistants: Online")
         else:
             st.warning("🤖 AI Assistants: Limited")
-        
-        # Quick DB test
-        if st.button("Test Snowflake DB", key="sidebar_db_test"):
-            if st.session_state.ai_system.knowledge_base.connect():
-                st.success("✅ Database: Connected")
-            else:
-                st.error("❌ Database: Offline")
         
         user_type = st.session_state.user_type
         
@@ -1696,27 +1646,16 @@ def main_app():
         else:
             show_dashboard()
 
+
 if __name__ == "__main__":
-    if "welcomed" not in st.session_state:
-        if not st.session_state.current_user:
-            st.markdown("""
-            ## Welcome to RealtyXperience!
-            ### Your Complete AI-Powered Real Estate Platform
-            
-            **Choose Your Portal:**
-            - **Properties Portal** - Residential & commercial properties with MR X AI assistant
-            - **Land Portal** - Investment land opportunities with LANDLORD AI assistant
-            
-            **Featured Services:**
-            - **Smart Search** with AI matching powered by Snowflake knowledge database
-            - **AI Assistants** - MR X for properties, LANDLORD for land investment
-            - **Dynamic Pricing** optimization for hosts and developers
-            - **Portfolio Management** for all user types
-            - **Investment Analysis** and predictions
-            - **Management Systems** for tenants and developers
-            
-            **Sign up or log in to get started!**
-            """)
-        st.session_state.welcomed = True
-    
-    main_app()
+    if not st.session_state.get("logged_in", False):
+        st.markdown("""
+        ## Welcome to RealtyXperience!
+        ### Your AI-Powered Real Estate Platform
+        
+        **Sign up or log in to get started!**
+        """)
+        show_login_signup()
+        st.stop()
+    else:
+        main_app()
