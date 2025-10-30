@@ -10,7 +10,7 @@ import hashlib
 import anthropic
 import os
 from dotenv import load_dotenv
-from database import SessionLocal, create_user, get_user_by_username, create_property, get_user_properties
+from database import SessionLocal, create_user, get_user_by_username, create_property, get_user_properties, Property
 
 # Load environment variables
 load_dotenv()
@@ -635,13 +635,6 @@ def show_mr_x_chat():
     st.markdown("*Your intelligent AI property assistant*")    
     # Database connection status
     col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🔧 Test Database Connection"):
-            with st.spinner("Testing connection..."):
-                if st.session_state.ai_system.knowledge_base.connect():
-                    st.success("✅ Database Connected!")
-                else:
-                    st.error("❌ Database Connection Failed")
     
     with col2:
         user_type = st.selectbox("I am a:", ["Guest/Buyer", "Property Host/Owner", "Real Estate Agent", "Property Investor", "Tenant"])
@@ -701,13 +694,6 @@ def show_landlord_chat():
     st.markdown("*Your intelligent AI land investment assistant*")    
     # Database connection status
     col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🔧 Test Database Connection", key="landlord_db_test"):
-            with st.spinner("Testing connection..."):
-                if st.session_state.ai_system.knowledge_base.connect():
-                    st.success("✅ Database Connected!")
-                else:
-                    st.error("❌ Database Connection Failed")
     
     with col2:
         user_type = st.selectbox("I am a:", ["Guest/Investor", "Land Developer", "Real Estate Agent", "Land Owner", "Investment Firm"], key="landlord_user_type")
@@ -1290,7 +1276,7 @@ def show_dashboard():
     st.markdown(f"*{portal.title()} Portal - {user_type.title()} Dashboard*")
     
     if portal == "properties":
-        if user_type == "host":
+        if user_type == "landlord":
             show_property_host_dashboard()
         elif user_type == "tenant":
             show_property_tenant_dashboard()
@@ -1311,17 +1297,29 @@ def show_dashboard():
 def show_property_host_dashboard():
     st.subheader("Property Portfolio Management")
     
-    user_properties = []
-    for city, properties in st.session_state.property_database.items():
-        for prop in properties:
-            if prop.get('owner_id') == st.session_state.current_user:
-                prop_copy = prop.copy()
-                prop_copy['city'] = city
-                user_properties.append(prop_copy)
+    # Get user's properties from database
+    db = SessionLocal()
+    try:
+        db_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        user_properties = []
+        for prop in db_properties:
+            user_properties.append({
+                'name': prop.name,
+                'city': prop.city,
+                'location': prop.location,
+                'bedrooms': prop.bedrooms,
+                'bathrooms': prop.bathrooms,
+                'property_type': prop.property_type,
+                'rent_monthly': prop.rent_monthly,
+                'sale_price': prop.sale_price,
+                'description': prop.description,
+                'owner_contact': prop.owner_contact
+            })
+    finally:
+        db.close()
     
     if user_properties:
-        col1, col2, col3, col4 = st.columns(4)
-        
+        col1, col2, col3, col4 = st.columns(4)        
         total_properties = len(user_properties)
         total_value = sum(p.get('sale_price', 0) for p in user_properties)
         monthly_income = sum(p.get('rent_monthly', 0) for p in user_properties)
@@ -1461,53 +1459,102 @@ def show_land_developer_dashboard():
             st.info("Navigate to 'List New Land' to add your first land")
 
 def show_property_tenant_dashboard():
-    st.subheader("Property Tenant Management Portal")
+    st.subheader("Find Your Perfect Property")
     
-    col1, col2, col3, col4 = st.columns(4)
+    st.info("🏠 Browse available properties using the 'Find Properties' page!")
     
-    with col1:
-        st.metric("Current Properties", "1")
-    with col2:
-        st.metric("Monthly Rent", "₦2.5M")
-    with col3:
-        st.metric("Next Due Date", "Mar 15")
-    with col4:
-        st.metric("Payment Status", "✅ Current")
+    # Show recent properties available for rent
+    st.markdown("### Recently Listed Properties")
     
-    st.info("Tenant management features coming soon!")
+    db = SessionLocal()
+    try:
+        # Get properties available for rent
+        recent_properties = db.query(Property).filter(Property.rent_monthly > 0).order_by(Property.id.desc()).limit(10).all()
+        
+        if recent_properties:
+            st.success(f"✅ {len(recent_properties)} properties available for rent")
+            
+            for prop in recent_properties[:3]:  # Show top 3
+                with st.expander(f"🏠 {prop.name} - ₦{prop.rent_monthly:,}/month"):
+                    st.write(f"**Location:** {prop.location}, {prop.city}")
+                    st.write(f"**Bedrooms:** {prop.bedrooms} | **Bathrooms:** {prop.bathrooms}")
+                    st.write(f"**Type:** {prop.property_type}")
+                    st.write(f"**Contact:** {prop.owner_contact}")
+        else:
+            st.info("No properties available yet. Check back soon!")
+    finally:
+        db.close()
 
 def show_property_agent_dashboard():
     st.subheader("Property Agent Management Portal")
     
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Active Property Listings", "12")
-    with col2:
-        st.metric("This Month Sales", "₦450M")
-    with col3:
-        st.metric("Commission Earned", "₦22.5M")
-    with col4:
-        st.metric("Client Satisfaction", "4.8/5")
-    
-    st.info("Property agent-specific features coming soon!")
+    # Get properties managed by this agent
+    db = SessionLocal()
+    try:
+        agent_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Active Listings", len(agent_properties))
+        with col2:
+            total_value = sum(p.sale_price or 0 for p in agent_properties)
+            st.metric("Portfolio Value", f"₦{total_value/1000000:.1f}M" if total_value > 0 else "₦0")
+        with col3:
+            monthly_rent = sum(p.rent_monthly or 0 for p in agent_properties)
+            st.metric("Monthly Rental Income", f"₦{monthly_rent:,}")
+        
+        if agent_properties:
+            st.markdown("### Your Listings")
+            for prop in agent_properties[:5]:
+                with st.expander(f"🏠 {prop.name}"):
+                    st.write(f"**Location:** {prop.location}, {prop.city}")
+                    st.write(f"**Rent:** ₦{prop.rent_monthly:,}/month" if prop.rent_monthly else "Sale only")
+                    st.write(f"**Type:** {prop.property_type}")
+        else:
+            st.info("No properties listed yet. Use 'List Property' to add your first listing!")
+    finally:
+        db.close()
 
 def show_property_investor_dashboard():
     st.subheader("Property Investment Portfolio")
     
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Property Portfolio Value", "₦2.8B")
-    with col2:
-        st.metric("Monthly Rental Income", "₦45M")
-    with col3:
-        st.metric("Property ROI This Year", "14.2%")
-    with col4:
-        st.metric("Properties Owned", "28")
-    
-    st.info("Property investor analytics dashboard coming soon!")
-
+    # Get user's investment properties from database
+    db = SessionLocal()
+    try:
+        db_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        
+        if db_properties:
+            # Calculate real metrics
+            total_properties = len(db_properties)
+            total_value = sum(p.sale_price for p in db_properties if p.sale_price)
+            monthly_income = sum(p.rent_monthly for p in db_properties if p.rent_monthly)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Properties Owned", total_properties)
+            with col2:
+                st.metric("Portfolio Value", f"₦{total_value/1000000:.1f}M" if total_value else "₦0")
+            with col3:
+                st.metric("Monthly Rental Income", f"₦{monthly_income:,}")
+            with col4:
+                roi = (monthly_income * 12 / total_value * 100) if total_value > 0 else 0
+                st.metric("Annual ROI", f"{roi:.1f}%")
+            
+            st.markdown("### Your Investment Properties")
+            for prop in db_properties:
+                with st.expander(f"🏠 {prop.name}"):
+                    st.write(f"**Location:** {prop.location}, {prop.city}")
+                    st.write(f"**Type:** {prop.property_type}")
+                    if prop.rent_monthly:
+                        st.write(f"**Monthly Rent:** ₦{prop.rent_monthly:,}")
+                    if prop.sale_price:
+                        st.write(f"**Property Value:** ₦{prop.sale_price:,}")
+        else:
+            st.info("You haven't added any investment properties yet. Start by listing a property!")
+    finally:
+        db.close()
 def show_land_investor_dashboard():
     st.subheader("Land Investment Portfolio")
     

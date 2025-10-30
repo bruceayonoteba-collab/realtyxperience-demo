@@ -58,39 +58,34 @@ class Property(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Basic Info
-    title = Column(String, nullable=False)
+    name = Column(String, nullable=False)  # Changed from title
     description = Column(Text)
     property_type = Column(String)
-    listing_type = Column(String)
     
     # Location
-    address = Column(String)
+    location = Column(String)  # Changed from address
     city = Column(String)
-    state = Column(String)
-    country = Column(String, default='Nigeria')
     
     # Details
     bedrooms = Column(Integer)
     bathrooms = Column(Integer)
-    square_feet = Column(Float)
+    year_built = Column(Integer)
     
     # Pricing
-    price = Column(Float)
-    currency = Column(String, default='NGN')
+    rent_monthly = Column(Integer)  # NEW - for rental price
     
-    # Status
-    status = Column(String, default='available')
-    is_published = Column(Boolean, default=True)
+    # Contact
+    owner_contact = Column(String)
+    owner_email = Column(String)
     
     # Metadata
-    created_date = Column(DateTime, default=datetime.utcnow)
-    updated_date = Column(DateTime, onupdate=datetime.utcnow)
-    views_count = Column(Integer, default=0)
-    
-    # Relationships
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default='available')
+    is_published = Column(Boolean, default=True)
+
+# Relationships
     owner = relationship("User", back_populates="properties")
     inquiries = relationship("Inquiry", back_populates="property")
-
 
 class Land(Base):
     __tablename__ = "lands"
