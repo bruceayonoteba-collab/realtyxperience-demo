@@ -751,15 +751,36 @@ def show_landlord_chat():
 def show_property_search():
     st.title("Find Your Perfect Property")
     st.markdown("*AI-powered property discovery with intelligent matching*")
-    
-    all_props = get_all_properties()
+
+    # Get real properties from database
+    db = SessionLocal()
+    try:
+        db_properties = db.query(Property).filter(Property.rent_monthly > 0).all()
+        all_props = []
+        for prop in db_properties:
+            all_props.append({
+                'id': prop.id,
+                'name': prop.name,
+                'city': prop.city,
+                'location': prop.location,
+                'bedrooms': prop.bedrooms,
+                'bathrooms': prop.bathrooms,
+                'property_type': prop.property_type,
+                'rent_monthly': prop.rent_monthly,
+                'description': prop.description,
+                'owner_contact': prop.owner_contact,
+                'year_built': prop.year_built
+            })
+    finally:
+        db.close()
+
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Available Properties", len(all_props))
     with col2:
-        avg_rent = np.mean([p.get('rent_monthly', 0) for p in all_props if p.get('rent_monthly')])
-        st.metric("Avg Rent", f"₦{avg_rent:,.0f}")
+        avg_rent = np.mean([p.get('rent_monthly', 0) for p in all_props if p.get('rent_monthly')]) if all_props else 0
+        st.metric("Avg Rent", f"₦{avg_rent:,.0f}" if avg_rent > 0 else "₦0")
     with col3:
         high_demand = len([p for p in all_props if p.get('demand_score', 0) > 8])
         st.metric("High Demand", f"{high_demand} properties")
@@ -775,7 +796,7 @@ def show_property_search():
             
             with col1:
                 filter_city = st.selectbox("City", ["All", "Lagos", "Abuja"])
-                filter_type = st.selectbox("Type", ["All", "Rent", "Sale", "Both"])
+                filter_type = st.selectbox("Type", ["All", "Rent"])
             with col2:
                 filter_beds = st.selectbox("Bedrooms", ["All", "1", "2", "3", "4", "5+"])
                 max_budget = st.number_input("Max Budget (₦)", min_value=0, value=0, help="0 = no limit")
@@ -796,8 +817,6 @@ def show_property_search():
             
             if filter_type == "Rent":
                 filtered = [p for p in filtered if p.get("rent_monthly")]
-            elif filter_type == "Sale":
-                filtered = [p for p in filtered if p.get("sale_price")]
             
             if filter_beds != "All":
                 target_beds = 5 if filter_beds == "5+" else int(filter_beds)
@@ -813,7 +832,7 @@ def show_property_search():
             
             if filter_property_type != "All":
                 filtered = [p for p in filtered if p.get("property_type") == filter_property_type]  
-          
+                
             if required_amenities:
                 filtered = [p for p in filtered if all(amenity in p.get("amenities", []) for amenity in required_amenities)]
             
