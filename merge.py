@@ -369,64 +369,6 @@ class UserAuth:
         st.session_state.user_type = None
         st.session_state.portal_selection = None
 
-def load_initial_properties():
-    initial_properties = {
-        "Lagos": [
-            {
-                "id": 1, "name": "Luxury 3BR Apartment", "location": "Ikoyi", "bedrooms": 3, "bathrooms": 3, 
-                "area_sqm": 150, "rent_monthly": 2500000, "sale_price": 80000000, 
-                "amenities": ["Pool", "Gym", "Security", "Generator"], 
-                "description": "Modern luxury apartment with sea view", "year_built": 2020, 
-                "owner_contact": "+234-123-456-789", "status": "active", "uploaded_date": "2024-01-15", 
-                "demand_score": 8.5, "competition_score": 7.2, "seasonal_multiplier": 1.2, 
-                "photos": 12, "description_quality": 9, "booking_rate": 0.85, "avg_rating": 4.7,
-                "owner_id": "owner_1", "available_from": "2024-03-01"
-            },
-            {
-                "id": 2, "name": "Cozy 2BR Flat", "location": "Yaba", "bedrooms": 2, "bathrooms": 2,
-                "area_sqm": 85, "rent_monthly": 800000, "sale_price": 25000000, 
-                "amenities": ["Security", "Parking"], "description": "Perfect for young professionals", 
-                "year_built": 2018, "owner_contact": "+234-123-456-790", "status": "active", 
-                "uploaded_date": "2024-02-10", "demand_score": 6.8, "competition_score": 8.1,
-                "seasonal_multiplier": 1.0, "photos": 6, "description_quality": 7, 
-                "booking_rate": 0.72, "avg_rating": 4.3, "owner_id": "owner_2", "available_from": "2024-03-15"
-            },
-            {
-                "id": 3, "name": "Executive 4BR Duplex", "location": "Lekki Phase 1", "bedrooms": 4, 
-                "bathrooms": 4, "area_sqm": 200, "rent_monthly": 3200000, "sale_price": 95000000, 
-                "amenities": ["Pool", "BQ", "Security", "Generator", "Garden"], 
-                "description": "Spacious family home in prime location", "year_built": 2019, 
-                "owner_contact": "+234-123-456-791", "status": "active", "uploaded_date": "2024-01-20", 
-                "demand_score": 9.1, "competition_score": 6.5, "seasonal_multiplier": 1.15, 
-                "photos": 18, "description_quality": 8.5, "booking_rate": 0.91, "avg_rating": 4.8,
-                "owner_id": "owner_3", "available_from": "2024-02-01"
-            }
-        ],
-        "Abuja": [
-            {
-                "id": 4, "name": "Diplomatic 4BR Villa", "location": "Maitama", "bedrooms": 4, 
-                "bathrooms": 4, "area_sqm": 250, "rent_monthly": 4500000, "sale_price": 120000000, 
-                "amenities": ["Pool", "BQ", "Security", "Generator", "Garden"], 
-                "description": "Premium location for diplomats and executives", "year_built": 2019, 
-                "owner_contact": "+234-123-456-792", "status": "active", "uploaded_date": "2024-01-25", 
-                "demand_score": 8.8, "competition_score": 5.9, "seasonal_multiplier": 1.3, 
-                "photos": 20, "description_quality": 9.2, "booking_rate": 0.88, "avg_rating": 4.9,
-                "owner_id": "owner_4", "available_from": "2024-03-01"
-            },
-            {
-                "id": 5, "name": "Modern 3BR Apartment", "location": "Wuse II", "bedrooms": 3, 
-                "bathrooms": 3, "area_sqm": 130, "rent_monthly": 1800000, "sale_price": 45000000, 
-                "amenities": ["Gym", "Security", "Generator"], 
-                "description": "Central business district location", "year_built": 2020, 
-                "owner_contact": "+234-123-456-793", "status": "active", "uploaded_date": "2024-02-05", 
-                "demand_score": 7.5, "competition_score": 7.8, "seasonal_multiplier": 1.1, 
-                "photos": 10, "description_quality": 8, "booking_rate": 0.79, "avg_rating": 4.5,
-                "owner_id": "owner_5", "available_from": "2024-02-20"
-            }
-        ]
-    }
-    return initial_properties
-
 def load_initial_land():
     initial_land = {
         "Lagos": [
@@ -501,21 +443,30 @@ if not st.session_state.ai_system:
     st.session_state.ai_system = RealtyXperienceAI()
 
 # Initialize databases
-if not st.session_state.property_database:
-    st.session_state.property_database = load_initial_properties()
-
 if not st.session_state.land_database:
     st.session_state.land_database = load_initial_land()
 
-def get_all_properties():
-    all_properties = []
-    for city, properties in st.session_state.property_database.items():
-        for prop in properties:
-            if prop.get("status") == "active":
-                prop_copy = prop.copy()
-                prop_copy["city"] = city
-                all_properties.append(prop_copy)
-    return all_properties
+def get_real_properties(limit=20):
+    """Get real properties from database for MR X context"""
+    db = SessionLocal()
+    try:
+        db_props = db.query(Property).filter(Property.rent_monthly > 0).limit(limit).all()
+        props_list = []
+        for p in db_props:
+            props_list.append({
+                "id": p.id,
+                "name": p.name,
+                "city": p.city,
+                "location": p.location,
+                "bedrooms": p.bedrooms,
+                "bathrooms": p.bathrooms,
+                "property_type": p.property_type,
+                "rent_monthly": p.rent_monthly,
+                "description": p.description
+            })
+        return props_list
+    finally:
+        db.close()
 
 def get_all_land():
     all_land = []
@@ -660,7 +611,7 @@ def show_mr_x_chat():
     
     if st.button("Send Message", type="primary", key="send_mr_x") and user_input:
         context = {
-            "properties": get_all_properties(),
+            "properties": get_real_properties(),
             "user_type": user_type,
             "current_user": st.session_state.current_user
         }
@@ -684,7 +635,7 @@ def show_mr_x_chat():
         col = [col1, col2, col3, col4][i]
         with col:
             if st.button(action, key=f"property_action_{i}"):
-                context = {"properties": get_all_properties(), "user_type": user_type}
+                context = {"properties": get_real_properties(), "user_type": user_type}
                 response = st.session_state.ai_system.mr_x_response(prompt, context)
                 st.session_state.mr_x_chat_history.append((action, response))
                 st.rerun()
@@ -826,9 +777,7 @@ def show_property_search():
                     filtered = [p for p in filtered if p["bedrooms"] == target_beds]
             
             if max_budget > 0:
-                filtered = [p for p in filtered if 
-                          (p.get("rent_monthly") and p["rent_monthly"] <= max_budget) or
-                          (p.get("sale_price") and p["sale_price"] <= max_budget)]
+                filtered = [p for p in filtered if p.get("rent_monthly") and p["rent_monthly"] <= max_budget]
             
             if filter_property_type != "All":
                 filtered = [p for p in filtered if p.get("property_type") == filter_property_type]  
@@ -938,9 +887,9 @@ def display_property_results(properties):
                 st.markdown(f"""
                 **Location:** {prop['location']}, {prop.get('city', '')}
                 
-                **Details:** {prop['bedrooms']} bed • {prop['bathrooms']} bath • {prop['area_sqm']} sqm • Built {prop.get('year_built', 'N/A')}
+                **Details:** {prop['bedrooms']} bed • {prop['bathrooms']} bath • {prop.get('property_type', 'Property')} • Built {prop.get('year_built', 'N/A')}
                 
-                **Price:** {'Rent: ₦' + f"{prop['rent_monthly']:,}/month" if prop.get('rent_monthly') else ''} {'Sale: ₦' + f"{prop['sale_price']:,}" if prop.get('sale_price') else ''}
+                **Price:** {'₦' + f"{prop['rent_monthly']:,}/month" if prop.get('rent_monthly') else 'Contact for pricing'}                
                 
                 **Quality:** Rating: {prop.get('avg_rating', 4.0)}/5 • Demand Score: {prop.get('demand_score', 7.0)}/10
                 
@@ -1022,27 +971,37 @@ def display_land_results(land_plots):
             st.markdown("---")
 
 def save_property_to_database(property_data):
-    city = property_data["city"]
-    if city not in st.session_state.property_database:
-        st.session_state.property_database[city] = []
-    
-    property_data["id"] = st.session_state.next_property_id
-    property_data["uploaded_date"] = datetime.now().strftime("%Y-%m-%d")
-    property_data["status"] = "active"
-    property_data["owner_id"] = st.session_state.current_user
-    
-    property_data["demand_score"] = round(random.uniform(6.0, 9.5), 1)
-    property_data["competition_score"] = round(random.uniform(5.0, 9.0), 1)
-    property_data["seasonal_multiplier"] = round(random.uniform(0.9, 1.3), 2)
-    property_data["booking_rate"] = round(random.uniform(0.6, 0.95), 2)
-    property_data["avg_rating"] = round(random.uniform(3.8, 4.9), 1)
-    property_data["photos"] = random.randint(3, 20)
-    property_data["description_quality"] = round(random.uniform(6.0, 9.5), 1)
-    
-    st.session_state.property_database[city].append(property_data)
-    st.session_state.next_property_id += 1
-    
-    return property_data["id"]
+    """Save property to PostgreSQL database"""
+    db = SessionLocal()
+    try:
+        new_property = Property(
+            owner_id=st.session_state.current_user_id,
+            name=property_data["name"],
+            description=property_data["description"],
+            property_type=property_data["property_type"],
+            location=property_data["location"],
+            city=property_data["city"],
+            bedrooms=property_data["bedrooms"],
+            bathrooms=property_data["bathrooms"],
+            year_built=property_data["year_built"],
+            rent_monthly=property_data["rent_monthly"],
+            owner_contact=property_data["owner_contact"],
+            owner_email=property_data.get("owner_email"),
+            status="available",
+            is_published=True
+        )
+        
+        db.add(new_property)
+        db.commit()
+        db.refresh(new_property)
+        
+        return new_property.id
+    except Exception as e:
+        db.rollback()
+        st.error(f"Error saving property: {e}")
+        return None
+    finally:
+        db.close()
 
 def save_land_to_database(land_data):
     city = land_data["city"]
@@ -1323,6 +1282,7 @@ def show_property_host_dashboard():
         user_properties = []
         for prop in db_properties:
             user_properties.append({
+                'id': prop.id,
                 'name': prop.name,
                 'city': prop.city,
                 'location': prop.location,
@@ -1330,7 +1290,6 @@ def show_property_host_dashboard():
                 'bathrooms': prop.bathrooms,
                 'property_type': prop.property_type,
                 'rent_monthly': prop.rent_monthly,
-                'sale_price': prop.sale_price,
                 'description': prop.description,
                 'owner_contact': prop.owner_contact
             })
@@ -1340,14 +1299,14 @@ def show_property_host_dashboard():
     if user_properties:
         col1, col2, col3, col4 = st.columns(4)        
         total_properties = len(user_properties)
-        total_value = sum(p.get('sale_price', 0) for p in user_properties)
+        total_value = sum(p.get('rent_monthly', 0) for p in user_properties) * 12  # Annual rental income
         monthly_income = sum(p.get('rent_monthly', 0) for p in user_properties)
         avg_rating = np.mean([p.get('avg_rating', 4.0) for p in user_properties])
         
         with col1:
             st.metric("Total Properties", total_properties)
         with col2:
-            st.metric("Portfolio Value", f"₦{total_value/1000000:.1f}M")
+            st.metric("Annual Rental Income", f"₦{total_value/1000000:.1f}M")
         with col3:
             st.metric("Monthly Income", f"₦{monthly_income/1000000:.1f}M")
         with col4:
@@ -1361,13 +1320,12 @@ def show_property_host_dashboard():
                 with col1:
                     st.markdown(f"""
                     **Property Details:**
-                    • {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop['area_sqm']} sqm
+                    - {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}
                     • Built: {prop.get('year_built')} | Type: {prop.get('property_type', 'apartment').title()}
                     • Status: {prop.get('status', 'active').title()}
                     
                     **Pricing:**
                     {'• Monthly Rent: ₦' + f"{prop['rent_monthly']:,}" if prop.get('rent_monthly') else ''}
-                    {'• Sale Price: ₦' + f"{prop['sale_price']:,}" if prop.get('sale_price') else ''}
                     
                     **Performance:**
                     • Views: {random.randint(15, 250)}
@@ -1517,7 +1475,7 @@ def show_property_agent_dashboard():
         with col1:
             st.metric("Active Listings", len(agent_properties))
         with col2:
-            total_value = sum(p.sale_price or 0 for p in agent_properties)
+            total_value = sum(p.rent_monthly or 0 for p in agent_properties) * 12  # Annual rental value
             st.metric("Portfolio Value", f"₦{total_value/1000000:.1f}M" if total_value > 0 else "₦0")
         with col3:
             monthly_rent = sum(p.rent_monthly or 0 for p in agent_properties)
@@ -1546,7 +1504,7 @@ def show_property_investor_dashboard():
         if db_properties:
             # Calculate real metrics
             total_properties = len(db_properties)
-            total_value = sum(p.sale_price for p in db_properties if p.sale_price)
+            total_value = sum(p.rent_monthly * 12 for p in db_properties if p.rent_monthly)  # Annual rental income
             monthly_income = sum(p.rent_monthly for p in db_properties if p.rent_monthly)
             
             col1, col2, col3, col4 = st.columns(4)
@@ -1568,8 +1526,6 @@ def show_property_investor_dashboard():
                     st.write(f"**Type:** {prop.property_type}")
                     if prop.rent_monthly:
                         st.write(f"**Monthly Rent:** ₦{prop.rent_monthly:,}")
-                    if prop.sale_price:
-                        st.write(f"**Property Value:** ₦{prop.sale_price:,}")
         else:
             st.info("You haven't added any investment properties yet. Start by listing a property!")
     finally:
@@ -1662,7 +1618,7 @@ def main_app():
         st.markdown("### Quick Insights")
         
         if portal == "properties":
-            all_props = get_all_properties()
+            all_props = get_real_properties()
             if all_props:
                 avg_demand = np.mean([p.get('demand_score', 7.0) for p in all_props])
                 market_status = "High Demand" if avg_demand > 8 else "Stable" if avg_demand > 7 else "Buyer's Market"
