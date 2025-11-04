@@ -10,7 +10,7 @@ import hashlib
 import anthropic
 import os
 from dotenv import load_dotenv
-from database import SessionLocal, create_user, get_user_by_username, create_property, get_user_properties, Property
+from database import SessionLocal, get_user_by_username, create_user, Property, RentPayment
 
 # Load environment variables
 load_dotenv()
@@ -1119,6 +1119,200 @@ def show_property_upload_form():
 **Status:** Active and searchable
 **Listed in:** {city} - {location}""")
 
+def show_property_details(property_id):
+    """Show detailed property view with edit and delete options"""
+    st.header("Property Details & Management")
+
+    # Check if viewing rent tracker
+    if st.session_state.get('viewing_rent_tracker') == property_id:
+        show_rent_tracker(property_id)
+        return
+    
+    # Get property from database
+    db = SessionLocal()
+    try:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        
+        if not prop:
+            st.error("Property not found!")
+            return
+            
+        if prop.owner_id != st.session_state.current_user_id:
+            st.error("You don't have permission to view this property!")
+            return
+        
+        # Display property details
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.subheader(prop.name)
+            st.markdown(f"**Location:** {prop.location}, {prop.city}")
+            st.markdown(f"**Type:** {prop.property_type}")
+            st.markdown(f"**Bedrooms:** {prop.bedrooms} | **Bathrooms:** {prop.bathrooms}")
+            st.markdown(f"**Built:** {prop.year_built}")
+            st.markdown(f"**Monthly Rent:** ₦{prop.rent_monthly:,}" if prop.rent_monthly else "**Monthly Rent:** Not specified")
+            
+            st.markdown("---")
+            st.markdown("**Description:**")
+            st.write(prop.description)
+            
+            st.markdown("---")
+            st.markdown("**Contact Information:**")
+            st.write(f"📞 {prop.owner_contact}")
+            if prop.owner_email:
+                st.write(f"📧 {prop.owner_email}")
+        
+        with col2:
+            st.markdown("**Status**")
+            is_occupied = st.checkbox("Property Occupied", key=f"occupied_{property_id}")
+            
+            st.markdown("---")
+            
+            if st.button("💰 Rent Tracker", use_container_width=True):
+                st.session_state.viewing_rent_tracker = property_id
+                st.rerun()         
+
+            if st.button("✏️ Edit Property", use_container_width=True):
+                st.session_state.editing_property_id = property_id
+                st.rerun()
+            
+            if st.button("🗑️ Delete Property", use_container_width=True, type="secondary"):
+                if st.session_state.get('confirm_delete') == property_id:
+                    # Actually delete
+                    db.delete(prop)
+                    db.commit()
+                    st.success("Property deleted successfully!")
+                    st.session_state.confirm_delete = None
+                    st.rerun()
+                else:
+                    # Ask for confirmation
+                    st.session_state.confirm_delete = property_id
+                    st.warning("Click delete again to confirm!")
+            
+            if st.button("← Back to Dashboard", use_container_width=True):
+                st.session_state.viewing_property_id = None
+                st.rerun()
+    
+    finally:
+        db.close()
+
+def show_rent_tracker(property_id):
+    """Rent payment tracking for a property"""
+    st.header("💰 Rent Payment Tracker")
+    
+    # Get property
+    db = SessionLocal()
+    try:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        
+        if not prop:
+            st.error("Property not found!")
+            return
+        
+        st.subheader(f"Property: {prop.name}")
+        st.markdown(f"Monthly Rent: ₦{prop.rent_monthly:,}")
+        
+        # Add new payment
+        with st.expander("➕ Record New Payment", expanded=False):
+            with st.form("add_payment"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    tenant_name = st.text_input("Tenant Name*")
+                    amount = st.number_input("Amount (₦)*", min_value=0, value=prop.rent_monthly)
+                    payment_date = st.date_input("Payment Date")
+                
+                with col2:
+                    due_date = st.date_input("Due Date")
+                    status = st.selectbox("Status", ["paid", "pending", "overdue"])
+                    payment_method = st.selectbox("Payment Method", ["Bank Transfer", "Cash", "Check", "Mobile Money"])
+                
+                notes = st.text_area("Notes (optional)")
+                
+                submitted = st.form_submit_button("Record Payment", type="primary")
+                
+                if submitted:
+                    if not tenant_name:
+                        st.error("Please enter tenant name")
+                    else:
+                        new_payment = RentPayment(
+                            property_id=property_id,
+                            amount=amount,
+                            payment_date=payment_date,
+                            due_date=due_date,
+                            status=status,
+                            tenant_name=tenant_name,
+                            payment_method=payment_method,
+                            notes=notes
+                        )
+                        db.add(new_payment)
+                        db.commit()
+                        st.success("✅ Payment recorded successfully!")
+                        st.rerun()
+        
+        # Payment history
+        st.subheader("Payment History")
+        
+        payments = db.query(RentPayment).filter(RentPayment.property_id == property_id).order_by(RentPayment.due_date.desc()).all()
+        
+        if payments:
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_collected = sum(p.amount for p in payments if p.status == 'paid')
+            pending_amount = sum(p.amount for p in payments if p.status == 'pending')
+            overdue_amount = sum(p.amount for p in payments if p.status == 'overdue')
+            
+            with col1:
+                st.metric("Total Collected", f"₦{total_collected:,}")
+            with col2:
+                st.metric("Pending", f"₦{pending_amount:,}")
+            with col3:
+                st.metric("Overdue", f"₦{overdue_amount:,}")
+            with col4:
+                st.metric("Total Payments", len(payments))
+            
+            st.markdown("---")
+            
+            # Payment list
+            for payment in payments:
+                status_color = {"paid": "success", "pending": "warning", "overdue": "error"}
+                
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**{payment.tenant_name}**")
+                        st.caption(f"Due: {payment.due_date.strftime('%b %d, %Y')}")
+                    
+                    with col2:
+                        st.markdown(f"**₦{payment.amount:,}**")
+                        st.caption(f"{payment.payment_method}")
+                    
+                    with col3:
+                        getattr(st, status_color.get(payment.status, "info"))(payment.status.upper())
+                        
+                        if payment.status != 'paid':
+                            if st.button("Mark Paid", key=f"pay_{payment.id}", use_container_width=True):
+                                payment.status = 'paid'
+                                db.commit()
+                                st.success("Marked as paid!")
+                                st.rerun()
+                    
+                    if payment.notes:
+                        st.caption(f"📝 {payment.notes}")
+                    
+                    st.markdown("---")
+        else:
+            st.info("No payment records yet. Add your first payment above!")
+        
+        if st.button("← Back to Property Details"):
+            st.session_state.viewing_rent_tracker = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
 def show_land_upload_form():
     st.header("List Your Land with AI Optimization")
     st.markdown("*Get AI-powered insights and investment optimization recommendations*")
@@ -1274,6 +1468,11 @@ def show_dashboard():
 
 def show_property_host_dashboard():
     st.subheader("Property Portfolio Management")
+
+# Check if viewing specific property
+    if st.session_state.get('viewing_property_id'):
+        show_property_details(st.session_state.viewing_property_id)
+        return
     
     # Get user's properties from database
     db = SessionLocal()
@@ -1336,8 +1535,9 @@ def show_property_host_dashboard():
                 with col2:
                     st.markdown("**Quick Actions**")
                     
-                    if st.button("Edit Listing", key=f"edit_prop_{prop['id']}"):
-                        st.info("Edit functionality coming soon!")
+                    if st.button("📋 View Details", key=f"view_prop_{prop['id']}", use_container_width=True):
+                        st.session_state.viewing_property_id = prop['id']
+                        st.rerun()
                     
                     if st.button("View Analytics", key=f"analytics_prop_{prop['id']}"):
                         st.info("Analytics dashboard coming soon!")

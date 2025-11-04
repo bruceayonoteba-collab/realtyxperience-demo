@@ -86,6 +86,30 @@ class Property(Base):
 # Relationships
     owner = relationship("User", back_populates="properties")
     inquiries = relationship("Inquiry", back_populates="property")
+    rent_payments = relationship("RentPayment", back_populates="property")
+
+class RentPayment(Base):
+    __tablename__ = "rent_payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    
+    # Payment details
+    amount = Column(Integer, nullable=False)
+    payment_date = Column(DateTime)
+    due_date = Column(DateTime)
+    status = Column(String, default='pending')  # pending, paid, overdue
+    
+    # Tenant info
+    tenant_name = Column(String)
+    payment_method = Column(String)  # cash, bank transfer, etc
+    notes = Column(Text)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    property = relationship("Property", back_populates="rent_payments")
 
 class Land(Base):
     __tablename__ = "lands"
