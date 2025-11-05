@@ -253,10 +253,10 @@ class RealtyXperienceAI:
 
 I can provide comprehensive property investment analysis including:
 
-• Price Predictions & Market timing recommendations
-• ROI Analysis & Capital appreciation projections  
-• Investment Scoring & Risk assessment
-• Location Intelligence & Infrastructure impact analysis
+- Price Predictions & Market timing recommendations
+- ROI Analysis & Capital appreciation projections  
+- Investment Scoring & Risk assessment
+- Location Intelligence & Infrastructure impact analysis
 
 Which property or area would you like me to analyze for investment potential?"""
 
@@ -265,10 +265,10 @@ Which property or area would you like me to analyze for investment potential?"""
 
 I can help you find the perfect property with:
 
-• AI-Powered Property Matching based on lifestyle preferences
-• Location Intelligence & Commute optimization
-• Market Intelligence & Price trend analysis
-• Smart Filters beyond basic search
+- AI-Powered Property Matching based on lifestyle preferences
+- Location Intelligence & Commute optimization
+- Market Intelligence & Price trend analysis
+- Smart Filters beyond basic search
 
 Let me know your preferences (budget, location, lifestyle needs) and I'll find your perfect property match!"""
 
@@ -276,10 +276,10 @@ Let me know your preferences (budget, location, lifestyle needs) and I'll find y
 
 I'm your expert property advisor specializing in:
 
-• Smart property matching & recommendations
-• Investment analysis & market predictions  
-• Neighborhood insights & safety analysis
-• Portfolio optimization for property owners
+- Smart property matching & recommendations
+- Investment analysis & market predictions  
+- Neighborhood insights & safety analysis
+- Portfolio optimization for property owners
 
 Ask me anything about properties, investments, or market trends!"""
     
@@ -292,10 +292,10 @@ Ask me anything about properties, investments, or market trends!"""
 
 I provide comprehensive land investment analysis including:
 
-• Development potential assessments & ROI analysis
-• Market timing recommendations & Growth corridor identification
-• Feasibility studies & Zoning compliance guidance
-• Infrastructure development impact analysis
+- Development potential assessments & ROI analysis
+- Market timing recommendations & Growth corridor identification
+- Feasibility studies & Zoning compliance guidance
+- Infrastructure development impact analysis
 
 Which land plot or area would you like me to analyze for investment potential?"""
 
@@ -304,10 +304,10 @@ Which land plot or area would you like me to analyze for investment potential?""
 
 I can help you find perfect land opportunities with:
 
-• AI matching based on investment goals
-• Development Intelligence & Future growth analysis
-• Strategic Filtering & Location intelligence
-• Market entry optimization
+- AI matching based on investment goals
+- Development Intelligence & Future growth analysis
+- Strategic Filtering & Location intelligence
+- Market entry optimization
 
 Tell me your investment goals and I'll find your perfect land opportunity!"""
 
@@ -315,10 +315,10 @@ Tell me your investment goals and I'll find your perfect land opportunity!"""
 
 I'm your expert land investment advisor specializing in:
 
-• Strategic land acquisition recommendations
-• Development potential assessments
-• Market timing & growth predictions
-• Documentation & regulatory guidance
+- Strategic land acquisition recommendations
+- Development potential assessments
+- Market timing & growth predictions
+- Documentation & regulatory guidance
 
 Ask me anything about land investment, development, or market opportunities!"""
 
@@ -574,10 +574,10 @@ def show_portal_selection():
             st.rerun()
         
         st.markdown("**Properties Portal Features:**")
-        st.write("• Residential & Commercial Properties")
-        st.write("• MR X AI Assistant for Real Estate")
-        st.write("• Smart Property Search & Matching")
-        st.write("• Rent & Sale Management")
+        st.write("- Residential & Commercial Properties")
+        st.write("- MR X AI Assistant for Real Estate")
+        st.write("- Smart Property Search & Matching")
+        st.write("- Rent & Sale Management")
         
         st.markdown("---")
         
@@ -944,13 +944,13 @@ def display_land_results(land_plots):
                 st.markdown(f"""
                 **Location:** {land['location']}, {land.get('city', '')}
                 
-                **Details:** {land['land_size_sqm']:,} sqm • {land['land_use']} • {land.get('zoning', 'N/A')} Zone
+                **Details:** {land['land_size_sqm']:,} sqm - {land['land_use']} - {land.get('zoning', 'N/A')} Zone
                 
                 **Price:** ₦{land['price_total']:,} (₦{land.get('price_per_sqm', 0):,}/sqm)
                 
-                **Documentation:** {land.get('title_document', 'N/A')} • Survey: {land.get('survey_status', 'N/A')}
+                **Documentation:** {land.get('title_document', 'N/A')} - Survey: {land.get('survey_status', 'N/A')}
                 
-                **Infrastructure:** Road: {land.get('access_road', 'N/A')} • Utilities: {', '.join(land.get('utilities', []))}
+                **Infrastructure:** Road: {land.get('access_road', 'N/A')} - Utilities: {', '.join(land.get('utilities', []))}
                 
                 **Key Features:** {', '.join(land.get('features', []))}
                 
@@ -1148,7 +1148,7 @@ def show_property_details(property_id):
             st.subheader(prop.name)
             st.markdown(f"**Location:** {prop.location}, {prop.city}")
             st.markdown(f"**Type:** {prop.property_type}")
-            st.markdown(f"**Bedrooms:** {prop.bedrooms} | **Bathrooms:** {prop.bathrooms}")
+            st.markdown(f"**Bedrooms:** {prop.bedrooms}, **Bathrooms:** {prop.bathrooms}")
             st.markdown(f"**Built:** {prop.year_built}")
             st.markdown(f"**Monthly Rent:** ₦{prop.rent_monthly:,}" if prop.rent_monthly else "**Monthly Rent:** Not specified")
             
@@ -1606,22 +1606,22 @@ def show_land_developer_dashboard():
                 with col1:
                     st.markdown(f"""
                     **Land Details:**
-                    • Size: {land['land_size_sqm']:,} sqm ({land['land_size_sqm']/10000:.2f} hectares)
-                    • Use: {land['land_use']} | Zoning: {land.get('zoning', 'N/A')}
-                    • Status: {land.get('status', 'active').Title()}
+                    - Size: {land['land_size_sqm']:,} sqm ({land['land_size_sqm']/10000:.2f} hectares)
+                    - Use: {land['land_use']}, Zoning: {land.get('zoning', 'N/A')}
+                    - Status: {land.get('status', 'active').Title()}
                     
                     **Pricing:**
-                    • Total Value: ₦{land['price_total']:,}
-                    • Price per SqM: ₦{land.get('price_per_sqm', 0):,}
+                    - Total Value: ₦{land['price_total']:,}
+                    - Price per SqM: ₦{land.get('price_per_sqm', 0):,}
                     
                     **Documentation:**
-                    • Title: {land.get('title_document', 'N/A')}
-                    • Survey: {land.get('survey_status', 'N/A')}
+                    - Title: {land.get('title_document', 'N/A')}
+                    - Survey: {land.get('survey_status', 'N/A')}
                     
                     **Performance:**
-                    • Views: {random.randint(10, 150)}
-                    • Inquiries: {random.randint(2, 20)}
-                    • Rating: {land.get('avg_rating', 4.0)}/5
+                    - Views: {random.randint(10, 150)}
+                    - Inquiries: {random.randint(2, 20)}
+                    - Rating {land.get('avg_rating', 4.0)}/5
                     """)
                 
                 with col2:
@@ -1667,7 +1667,7 @@ def show_property_tenant_dashboard():
             for prop in recent_properties[:3]:  # Show top 3
                 with st.expander(f"🏠 {prop.name} - ₦{prop.rent_monthly:,}/month"):
                     st.write(f"**Location:** {prop.location}, {prop.city}")
-                    st.write(f"**Bedrooms:** {prop.bedrooms} | **Bathrooms:** {prop.bathrooms}")
+                    st.write(f"**Bedrooms:** {prop.bedrooms}, **Bathrooms:** {prop.bathrooms}")
                     st.write(f"**Type:** {prop.property_type}")
                     st.write(f"**Contact:** {prop.owner_contact}")
         else:
@@ -1763,13 +1763,13 @@ def show_general_land_dashboard():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.info("**Recent Land Searches**\n\n• Commercial land in VI\n• Development opportunities\n• Industrial plots in Ikorodu")
+        st.info("**Recent Land Searches**\n\n- Commercial land in VI\n- Development opportunities\n- Industrial plots in Ikorodu")
     
     with col2:
-        st.success("**Watchlisted Land**\n\n• Commercial Plot - Victoria Island\n• Residential Land - Maitama\n• Industrial Zone - Ikorodu")
+        st.success("**Watchlisted Land**\n\n- Commercial Plot - Victoria Island\n- Residential Land - Maitama\n- Industrial Zone - Ikorodu")
     
     with col3:
-        st.warning("**Land Market Alerts**\n\n• New land in growth corridors\n• Price opportunities\n• Development zone updates")
+        st.warning("**Land Market Alerts**\n\n- New land in growth corridors\n- Price opportunities\n- Development zone updates")
 
 def main_app():
     if not st.session_state.portal_selection:
