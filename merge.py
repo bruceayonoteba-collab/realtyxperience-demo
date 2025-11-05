@@ -480,6 +480,7 @@ def get_all_land():
 
 def show_login_signup():
     st.title("Welcome to RealtyXperience")
+    st.info("📱 **iOS Users:** Please update to iOS 17 or later for full compatibility. iOS 16 is not supported due to browser limitations.")
     st.markdown("*Your AI-Powered Real Estate Platform*")
     
                                                                                
