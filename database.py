@@ -82,8 +82,12 @@ class Property(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default='available')
     is_published = Column(Boolean, default=True)
+    occupancy_status = Column(String, default='vacant')  # occupied, vacant
+    current_tenant_name = Column(String)
+    lease_start_date = Column(DateTime)
+    lease_end_date = Column(DateTime)
 
-# Relationships
+    # Relationships
     owner = relationship("User", back_populates="properties")
     inquiries = relationship("Inquiry", back_populates="property")
     rent_payments = relationship("RentPayment", back_populates="property")

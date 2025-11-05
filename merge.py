@@ -884,19 +884,19 @@ def display_property_results(properties):
                 
                 getattr(st, indicator_color)(f"**{i}. {prop['name']}** - {value_indicator}")
                 
-                st.markdown(f"""
-                **Location:** {prop['location']}, {prop.get('city', '')}
-                
-                **Details:** {prop['bedrooms']} bed • {prop['bathrooms']} bath • {prop.get('property_type', 'Property')} • Built {prop.get('year_built', 'N/A')}
-                
-                **Price:** {'₦' + f"{prop['rent_monthly']:,}/month" if prop.get('rent_monthly') else 'Contact for pricing'}                
-                
-                **Quality:** Rating: {prop.get('avg_rating', 4.0)}/5 • Demand Score: {prop.get('demand_score', 7.0)}/10
-                
-                **Amenities:** {', '.join(prop.get('amenities', []))}
-                
-                **Description:** {prop['description'][:150]}...
-                """)
+st.markdown(f"""
+**Location:** {prop['location']}, {prop.get('city', '')}
+
+**Details:** {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}, Built {prop.get('year_built', 'N/A')}
+
+**Price:** ₦{prop['rent_monthly']:,}/month
+
+**Quality:** Rating {prop.get('avg_rating', 4.0)}/5, Demand Score {prop.get('demand_score', 7.0)}/10
+
+**Amenities:** {', '.join(prop.get('amenities', []))}
+
+**Description:** {prop['description'][:150]}...
+""")
             
             with col2:
                 st.markdown(f"**Property ID:** NF-{prop['id']:04d}")
@@ -1495,43 +1495,56 @@ def show_property_host_dashboard():
     finally:
         db.close()
     
-    if user_properties:
-        col1, col2, col3, col4 = st.columns(4)        
-        total_properties = len(user_properties)
-        total_value = sum(p.get('rent_monthly', 0) for p in user_properties) * 12  # Annual rental income
-        monthly_income = sum(p.get('rent_monthly', 0) for p in user_properties)
-        avg_rating = np.mean([p.get('avg_rating', 4.0) for p in user_properties])
-        
+    if user_properties:        
+        # Get payment data
+        db_check = SessionLocal()
+        try:
+            total_collected = 0
+            pending_payments = 0
+            overdue_payments = 0
+
+            for prop in user_properties:
+                payments = db_check.query(RentPayment).filter(RentPayment.property_id == prop['id']).all()
+                total_collected += sum(p.amount for p in payments if p.status == 'paid')
+                pending_payments += sum(p.amount for p in payments if p.status == 'pending')
+                overdue_payments += sum(p.amount for p in payments if p.status == 'overdue')
+        finally:
+            db_check.close()
+
+        # Enhanced metrics
+        col1, col2, col3, col4 = st.columns(4)
+
         with col1:
-            st.metric("Total Properties", total_properties)
+            st.metric("Total Properties", len(user_properties))
         with col2:
-            st.metric("Annual Rental Income", f"₦{total_value/1000000:.1f}M")
+            occupied = len([p for p in user_properties if p.get('occupancy_status') == 'occupied'])
+            occupancy_rate = (occupied / len(user_properties) * 100) if user_properties else 0
+            st.metric("Occupancy Rate", f"{occupancy_rate:.0f}%", f"{occupied}/{len(user_properties)} occupied")
         with col3:
-            st.metric("Monthly Income", f"₦{monthly_income/1000000:.1f}M")
+            st.metric("Rent Collected", f"₦{total_collected/1000000:.1f}M")
         with col4:
-            st.metric("Avg Rating", f"{avg_rating:.1f}/5")
-        
+            st.metric("Pending Payments", f"₦{pending_payments:,}", delta=f"₦{overdue_payments:,} overdue" if overdue_payments > 0 else None, delta_color="inverse")                
+                
         st.subheader("Your Properties")
         for prop in user_properties:
             with st.expander(f"{prop['name']} - {prop['location']}", expanded=False):
                 col1, col2 = st.columns([3, 1])
-                
+
                 with col1:
-                    st.markdown(f"""
-                    **Property Details:**
-                    - {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}
-                    • Built: {prop.get('year_built')} | Type: {prop.get('property_type', 'apartment').title()}
-                    • Status: {prop.get('status', 'active').title()}
-                    
+                     st.markdown(f"""
+                     **Property Details:**
+                     - {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}
+                     - Built {prop.get('year_built')}, Type {prop.get('property_type', 'apartment').title()}
+                     - Status {prop.get('status', 'active').title()}
+
                     **Pricing:**
-                    {'• Monthly Rent: ₦' + f"{prop['rent_monthly']:,}" if prop.get('rent_monthly') else ''}
-                    
+                    - Monthly Rent ₦{prop.get('rent_monthly', 0):,}
+
                     **Performance:**
-                    • Views: {random.randint(15, 250)}
-                    • Inquiries: {random.randint(3, 25)}
-                    • Rating: {prop.get('avg_rating', 4.0)}/5
-                    """)
-                
+                    - Views {random.randint(15, 250)}
+                    - Inquiries {random.randint(3, 25)}
+                    - Rating {prop.get('avg_rating', 4.0)}/5
+                    """)                
                 with col2:
                     st.markdown("**Quick Actions**")
                     
