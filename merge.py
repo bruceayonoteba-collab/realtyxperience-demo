@@ -884,19 +884,19 @@ def display_property_results(properties):
                 
                 getattr(st, indicator_color)(f"**{i}. {prop['name']}** - {value_indicator}")
                 
-st.markdown(f"""
-**Location:** {prop['location']}, {prop.get('city', '')}
+                st.markdown(f"""
+                **Location:** {prop['location']}, {prop.get('city', '')}
 
-**Details:** {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}, Built {prop.get('year_built', 'N/A')}
+                **Details:** {prop['bedrooms']} bed, {prop['bathrooms']} bath, {prop.get('property_type', 'Property')}, Built {prop.get('year_built', 'N/A')}
 
-**Price:** ₦{prop['rent_monthly']:,}/month
+               **Price:** ₦{prop['rent_monthly']:,}/month
 
-**Quality:** Rating {prop.get('avg_rating', 4.0)}/5, Demand Score {prop.get('demand_score', 7.0)}/10
+               **Quality:** Rating {prop.get('avg_rating', 4.0)}/5, Demand Score {prop.get('demand_score', 7.0)}/10
 
-**Amenities:** {', '.join(prop.get('amenities', []))}
+               **Amenities:** {', '.join(prop.get('amenities', []))}
 
-**Description:** {prop['description'][:150]}...
-""")
+               **Description:** {prop['description'][:150]}...
+               """)
             
             with col2:
                 st.markdown(f"**Property ID:** NF-{prop['id']:04d}")
