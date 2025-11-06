@@ -1124,6 +1124,11 @@ def show_property_details(property_id):
     """Show detailed property view with edit and delete options"""
     st.header("Property Details & Management")
 
+    # Check if managing tenant
+    if st.session_state.get('viewing_tenant_manager') == property_id:
+        manage_tenant(property_id)
+        return
+
     # Check if viewing rent tracker
     if st.session_state.get('viewing_rent_tracker') == property_id:
         show_rent_tracker(property_id)
@@ -1171,6 +1176,10 @@ def show_property_details(property_id):
             
             if st.button("💰 Rent Tracker", use_container_width=True):
                 st.session_state.viewing_rent_tracker = property_id
+                st.rerun()
+
+            if st.button("👤 Manage Tenant", use_container_width=True):
+                st.session_state.viewing_tenant_manager = property_id
                 st.rerun()         
 
             if st.button("✏️ Edit Property", use_container_width=True):
@@ -1309,6 +1318,108 @@ def show_rent_tracker(property_id):
         
         if st.button("← Back to Property Details"):
             st.session_state.viewing_rent_tracker = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
+def manage_tenant(property_id):
+    """Tenant management for a property"""
+    st.header("👤 Tenant Management")
+    
+    db = SessionLocal()
+    try:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        
+        if not prop:
+            st.error("Property not found!")
+            return
+        
+        st.subheader(f"Property: {prop.name}")
+        
+        # Current tenant status
+        if prop.occupancy_status == 'occupied' and prop.current_tenant_name:
+            st.success(f"**Occupied** by {prop.current_tenant_name}")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Tenant Details:**")
+                st.write(f"**Name:** {prop.current_tenant_name}")
+                if prop.lease_start_date:
+                    st.write(f"**Lease Start:** {prop.lease_start_date.strftime('%b %d, %Y')}")
+                if prop.lease_end_date:
+                    st.write(f"**Lease End:** {prop.lease_end_date.strftime('%b %d, %Y')}")
+                
+                # Calculate lease duration
+                if prop.lease_start_date and prop.lease_end_date:
+                    days_remaining = (prop.lease_end_date - datetime.now()).days
+                    if days_remaining > 0:
+                        st.info(f"📅 {days_remaining} days remaining on lease")
+                    else:
+                        st.warning(f"⚠️ Lease expired {abs(days_remaining)} days ago")
+            
+            with col2:
+                st.markdown("**Actions:**")
+                
+                # Edit tenant button
+                if st.button("✏️ Edit Tenant Info", use_container_width=True):
+                    st.session_state.editing_tenant = True
+                    st.rerun()
+                
+                # Mark as vacant button
+                if st.button("🚪 Mark as Vacant", use_container_width=True, type="secondary"):
+                    prop.occupancy_status = 'vacant'
+                    prop.current_tenant_name = None
+                    prop.lease_start_date = None
+                    prop.lease_end_date = None
+                    db.commit()
+                    st.success("Property marked as vacant!")
+                    st.rerun()
+        else:
+            st.info("**Vacant** - No current tenant")
+            st.session_state.editing_tenant = True
+        
+        # Add/Edit tenant form
+        if st.session_state.get('editing_tenant'):
+            st.markdown("---")
+            st.subheader("➕ Add/Update Tenant")
+            
+            with st.form("tenant_form"):
+                tenant_name = st.text_input("Tenant Name*", value=prop.current_tenant_name or "")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    lease_start = st.date_input("Lease Start Date*", value=prop.lease_start_date or datetime.now())
+                with col2:
+                    lease_end = st.date_input("Lease End Date*", value=prop.lease_end_date or (datetime.now() + timedelta(days=365)))
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    submitted = st.form_submit_button("Save Tenant", type="primary", use_container_width=True)
+                with col2:
+                    cancel = st.form_submit_button("Cancel", use_container_width=True)
+                
+                if submitted:
+                    if not tenant_name:
+                        st.error("Please enter tenant name")
+                    else:
+                        prop.current_tenant_name = tenant_name
+                        prop.lease_start_date = lease_start
+                        prop.lease_end_date = lease_end
+                        prop.occupancy_status = 'occupied'
+                        db.commit()
+                        st.session_state.editing_tenant = False
+                        st.success("✅ Tenant information saved!")
+                        st.rerun()
+                
+                if cancel:
+                    st.session_state.editing_tenant = False
+                    st.rerun()
+        
+        if st.button("← Back to Property Details"):
+            st.session_state.viewing_tenant_manager = None
+            st.session_state.editing_tenant = False
             st.rerun()
     
     finally:
@@ -1482,6 +1593,7 @@ def show_property_host_dashboard():
         user_properties = []
         for prop in db_properties:
             user_properties.append({
+                'occupancy_status': prop.occupancy_status,
                 'id': prop.id,
                 'name': prop.name,
                 'city': prop.city,
@@ -1522,7 +1634,10 @@ def show_property_host_dashboard():
             occupancy_rate = (occupied / len(user_properties) * 100) if user_properties else 0
             st.metric("Occupancy Rate", f"{occupancy_rate:.0f}%", f"{occupied}/{len(user_properties)} occupied")
         with col3:
-            st.metric("Rent Collected", f"₦{total_collected/1000000:.1f}M")
+            if total_collected >= 1000000:
+               st.metric("Rent Collected", f"₦{total_collected/1000000:.1f}M")
+            else:
+               st.metric("Rent Collected", f"₦{total_collected:,}")
         with col4:
             st.metric("Pending Payments", f"₦{pending_payments:,}", delta=f"₦{overdue_payments:,} overdue" if overdue_payments > 0 else None, delta_color="inverse")                
                 
