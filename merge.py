@@ -10,7 +10,7 @@ import hashlib
 import anthropic
 import os
 from dotenv import load_dotenv
-from database import SessionLocal, get_user_by_username, create_user, Property, RentPayment
+from database import SessionLocal, get_user_by_username, create_user, Property, RentPayment, Lead, Showing
 
 # Load environment variables
 load_dotenv()
@@ -1425,6 +1425,600 @@ def manage_tenant(property_id):
     finally:
         db.close()
 
+def manage_leads():
+    """Lead management for agents"""
+    st.header("🎯 Lead Management")
+    
+    db = SessionLocal()
+    try:
+        # Add new lead
+        with st.expander("➕ Add New Lead", expanded=False):
+            with st.form("add_lead"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    lead_name = st.text_input("Lead Name*")
+                    phone = st.text_input("Phone Number*")
+                    email = st.text_input("Email (optional)")
+                
+                with col2:
+                    budget_min = st.number_input("Min Budget (₦)", min_value=0, step=50000)
+                    budget_max = st.number_input("Max Budget (₦)", min_value=0, step=50000)
+                    bedrooms = st.number_input("Bedrooms Needed", min_value=0, max_value=10, value=2)
+                
+                location = st.text_input("Preferred Location")
+                notes = st.text_area("Notes")
+                next_follow_up = st.date_input("Next Follow-up Date")
+                
+                submitted = st.form_submit_button("Add Lead", type="primary")
+                
+                if submitted:
+                    if not lead_name or not phone:
+                        st.error("Please enter lead name and phone number")
+                    else:
+                        new_lead = Lead(
+                            agent_id=st.session_state.current_user_id,
+                            lead_name=lead_name,
+                            phone=phone,
+                            email=email,
+                            budget_min=budget_min,
+                            budget_max=budget_max,
+                            bedrooms_needed=bedrooms,
+                            preferred_location=location,
+                            notes=notes,
+                            next_follow_up=next_follow_up,
+                            status='new'
+                        )
+                        db.add(new_lead)
+                        db.commit()
+                        st.success("✅ Lead added successfully!")
+                        st.rerun()
+        
+        # Display leads
+        st.subheader("Your Leads")
+        
+        # Filter by status
+        status_filter = st.selectbox("Filter by Status", 
+            ["All", "New", "Contacted", "Viewing Scheduled", "Interested", "Closed", "Lost"])
+        
+        leads = db.query(Lead).filter(Lead.agent_id == st.session_state.current_user_id).order_by(Lead.created_at.desc()).all()
+        
+        if status_filter != "All":
+            leads = [l for l in leads if l.status.replace('_', ' ').title() == status_filter]
+        
+        if leads:
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_leads = len(db.query(Lead).filter(Lead.agent_id == st.session_state.current_user_id).all())
+            closed_leads = len([l for l in db.query(Lead).filter(Lead.agent_id == st.session_state.current_user_id).all() if l.status == 'closed'])
+            conversion_rate = (closed_leads / total_leads * 100) if total_leads > 0 else 0
+            
+            with col1:
+                st.metric("Total Leads", total_leads)
+            with col2:
+                st.metric("Active Leads", len([l for l in leads if l.status not in ['closed', 'lost']]))
+            with col3:
+                st.metric("Closed", closed_leads)
+            with col4:
+                st.metric("Conversion Rate", f"{conversion_rate:.0f}%")
+            
+            st.markdown("---")
+            
+            # Lead list
+            for lead in leads:
+                status_colors = {
+                    'new': 'info',
+                    'contacted': 'warning', 
+                    'viewing_scheduled': 'success',
+                    'interested': 'success',
+                    'closed': 'success',
+                    'lost': 'error'
+                }
+                
+                with st.expander(f"🎯 {lead.lead_name} - {lead.status.replace('_', ' ').title()}", expanded=False):
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Contact:**")
+                        st.write(f"📞 {lead.phone}")
+                        if lead.email:
+                            st.write(f"📧 {lead.email}")
+                        
+                        if lead.notes:
+                            st.markdown(f"**Notes:** {lead.notes}")
+                    
+                    with col2:
+                        st.markdown(f"**Requirements:**")
+                        st.write(f"Budget: ₦{lead.budget_min:,} - ₦{lead.budget_max:,}")
+                        st.write(f"Bedrooms: {lead.bedrooms_needed}")
+                        if lead.preferred_location:
+                            st.write(f"Location: {lead.preferred_location}")
+                        
+                        if lead.next_follow_up:
+                            days_until = (lead.next_follow_up - datetime.now()).days
+                            if days_until < 0:
+                                st.error(f"⚠️ Follow-up overdue by {abs(days_until)} days!")
+                            elif days_until == 0:
+                                st.warning("📅 Follow-up today!")
+                            else:
+                                st.info(f"📅 Follow-up in {days_until} days")
+                    
+                    with col3:
+                        st.markdown("**Actions:**")
+                        
+                        new_status = st.selectbox("Update Status", 
+                            ['new', 'contacted', 'viewing_scheduled', 'interested', 'closed', 'lost'],
+                            index=['new', 'contacted', 'viewing_scheduled', 'interested', 'closed', 'lost'].index(lead.status),
+                            key=f"status_{lead.id}")
+                        
+                        if st.button("Update", key=f"update_{lead.id}", use_container_width=True):
+                            lead.status = new_status
+                            lead.last_contacted = datetime.now()
+                            db.commit()
+                            st.success("Status updated!")
+                            st.rerun()
+                        
+                        if st.button("Schedule Showing", key=f"show_{lead.id}", use_container_width=True):
+                            st.session_state.scheduling_for_lead = lead.id
+                            st.rerun()
+                    
+                    st.markdown("---")
+        else:
+            st.info("No leads yet. Add your first lead above!")
+
+        if st.button("← Back to Dashboard"):
+            st.session_state.viewing_lead_manager = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
+def manage_showings():
+    """Property showing scheduler for agents"""
+    st.header("📅 Showing Scheduler")
+    
+    db = SessionLocal()
+    try:
+        # Schedule new showing
+        with st.expander("➕ Schedule New Showing", expanded=False):
+            with st.form("schedule_showing"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Get agent's properties
+                    agent_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+                    property_options = {f"{p.name} - {p.location}": p.id for p in agent_properties}
+                    
+                    selected_property = st.selectbox("Select Property*", list(property_options.keys()))
+                    property_id = property_options[selected_property] if selected_property else None
+                    
+                    # Get agent's leads
+                    agent_leads = db.query(Lead).filter(Lead.agent_id == st.session_state.current_user_id).all()
+                    lead_options = {f"{l.lead_name} - {l.phone}": l.id for l in agent_leads}
+                    lead_options["Walk-in/New Lead"] = None
+                    
+                    selected_lead = st.selectbox("Select Lead", list(lead_options.keys()))
+                    lead_id = lead_options[selected_lead]
+                
+                with col2:
+                    showing_date = st.date_input("Showing Date*")
+                    showing_time = st.time_input("Showing Time*")
+                    
+                    lead_name = st.text_input("Lead Name*")
+                    lead_phone = st.text_input("Lead Phone*")
+                
+                pre_notes = st.text_area("Pre-Showing Notes (e.g., lead preferences, special requirements)")
+                
+                submitted = st.form_submit_button("Schedule Showing", type="primary")
+                
+                if submitted:
+                    if not property_id or not lead_name or not lead_phone:
+                        st.error("Please fill in all required fields")
+                    else:
+                        # Combine date and time
+                        showing_datetime = datetime.combine(showing_date, showing_time)
+                        
+                        new_showing = Showing(
+                            agent_id=st.session_state.current_user_id,
+                            property_id=property_id,
+                            lead_id=lead_id,
+                            showing_date=showing_datetime,
+                            lead_name=lead_name,
+                            lead_phone=lead_phone,
+                            pre_showing_notes=pre_notes,
+                            status='scheduled'
+                        )
+                        db.add(new_showing)
+                        
+                        # Update lead status if selected
+                        if lead_id:
+                            lead = db.query(Lead).filter(Lead.id == lead_id).first()
+                            if lead:
+                                lead.status = 'viewing_scheduled'
+                        
+                        db.commit()
+                        st.success("✅ Showing scheduled successfully!")
+                        st.rerun()
+        
+        # Display showings
+        st.subheader("Your Showings")
+        
+        # Filter
+        filter_option = st.selectbox("Filter", ["Upcoming", "Today", "This Week", "All", "Completed", "Cancelled"])
+        
+        showings = db.query(Showing).filter(Showing.agent_id == st.session_state.current_user_id).order_by(Showing.showing_date).all()
+        
+        # Apply filters
+        now = datetime.now()
+        if filter_option == "Upcoming":
+            showings = [s for s in showings if s.showing_date >= now and s.status == 'scheduled']
+        elif filter_option == "Today":
+            showings = [s for s in showings if s.showing_date.date() == now.date() and s.status == 'scheduled']
+        elif filter_option == "This Week":
+            week_end = now + timedelta(days=7)
+            showings = [s for s in showings if now <= s.showing_date <= week_end and s.status == 'scheduled']
+        elif filter_option == "Completed":
+            showings = [s for s in showings if s.status == 'completed']
+        elif filter_option == "Cancelled":
+            showings = [s for s in showings if s.status in ['cancelled', 'no_show']]
+        
+        if showings:
+            # Summary
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_showings = len(db.query(Showing).filter(Showing.agent_id == st.session_state.current_user_id).all())
+            today_showings = len([s for s in db.query(Showing).filter(Showing.agent_id == st.session_state.current_user_id).all() if s.showing_date.date() == now.date()])
+            completed = len([s for s in db.query(Showing).filter(Showing.agent_id == st.session_state.current_user_id).all() if s.status == 'completed'])
+            
+            with col1:
+                st.metric("Total Showings", total_showings)
+            with col2:
+                st.metric("Today", today_showings)
+            with col3:
+                st.metric("This Week", len([s for s in showings if filter_option == "This Week"]))
+            with col4:
+                st.metric("Completed", completed)
+            
+            st.markdown("---")
+            
+            # Showing list
+            for showing in showings:
+                property_obj = db.query(Property).filter(Property.id == showing.property_id).first()
+                
+                status_icon = {
+                    'scheduled': '📅',
+                    'completed': '✅',
+                    'cancelled': '❌',
+                    'no_show': '🚫'
+                }
+                
+                with st.expander(f"{status_icon.get(showing.status, '📅')} {showing.showing_date.strftime('%b %d, %I:%M %p')} - {property_obj.name if property_obj else 'Unknown'}", expanded=False):
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    
+                    with col1:
+                        st.markdown("**Property:**")
+                        if property_obj:
+                            st.write(f"📍 {property_obj.location}, {property_obj.city}")
+                            st.write(f"💰 ₦{property_obj.rent_monthly:,}/month")
+                        
+                        st.markdown("**Lead:**")
+                        st.write(f"👤 {showing.lead_name}")
+                        st.write(f"📞 {showing.lead_phone}")
+                    
+                    with col2:
+                        if showing.pre_showing_notes:
+                            st.markdown("**Pre-Showing Notes:**")
+                            st.write(showing.pre_showing_notes)
+                        
+                        if showing.post_showing_notes:
+                            st.markdown("**Post-Showing Notes:**")
+                            st.write(showing.post_showing_notes)
+                            st.info(f"Feedback: {showing.lead_feedback}")
+                    
+                    with col3:
+                        st.markdown("**Actions:**")
+                        
+                        if showing.status == 'scheduled':
+                            if st.button("✅ Mark Complete", key=f"complete_{showing.id}", use_container_width=True):
+                                st.session_state.completing_showing = showing.id
+                                st.rerun()
+                            
+                            if st.button("❌ Cancel", key=f"cancel_{showing.id}", use_container_width=True):
+                                showing.status = 'cancelled'
+                                db.commit()
+                                st.success("Showing cancelled")
+                                st.rerun()
+                        
+                        elif showing.status == 'completed' and showing.lead_id:
+                            if st.button("Update Lead", key=f"lead_{showing.id}", use_container_width=True):
+                                st.session_state.viewing_lead_manager = True
+                                st.rerun()
+                    
+                    # Complete showing form
+                    if st.session_state.get('completing_showing') == showing.id:
+                        st.markdown("---")
+                        with st.form(f"complete_showing_{showing.id}"):
+                            post_notes = st.text_area("Post-Showing Notes*")
+                            feedback = st.selectbox("Lead Feedback*", ["interested", "not_interested", "needs_time"])
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                complete = st.form_submit_button("Save & Complete", type="primary")
+                            with col2:
+                                cancel = st.form_submit_button("Cancel")
+                            
+                            if complete:
+                                showing.status = 'completed'
+                                showing.post_showing_notes = post_notes
+                                showing.lead_feedback = feedback
+                                
+                                # Update lead status
+                                if showing.lead_id:
+                                    lead = db.query(Lead).filter(Lead.id == showing.lead_id).first()
+                                    if lead:
+                                        if feedback == 'interested':
+                                            lead.status = 'interested'
+                                        elif feedback == 'not_interested':
+                                            lead.status = 'lost'
+                                
+                                db.commit()
+                                st.session_state.completing_showing = None
+                                st.success("Showing completed!")
+                                st.rerun()
+                            
+                            if cancel:
+                                st.session_state.completing_showing = None
+                                st.rerun()
+        else:
+            st.info("No showings scheduled. Schedule your first showing above!")
+        
+        if st.button("← Back to Dashboard"):
+            st.session_state.viewing_showing_scheduler = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
+def track_commissions():
+    """Commission tracking for agents"""
+    st.header("💰 Commission Tracker")
+    
+    db = SessionLocal()
+    try:
+        # Get agent's properties and calculate commissions
+        agent_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        
+        if not agent_properties:
+            st.info("No properties listed yet. Add properties to start tracking commissions!")
+            if st.button("← Back to Dashboard"):
+                st.session_state.viewing_commission_tracker = None
+                st.rerun()
+            return
+        
+        # Commission calculations
+        total_monthly_commission = 0
+        total_annual_commission = 0
+        commission_breakdown = []
+        
+        for prop in agent_properties:
+            if prop.rent_monthly:
+                platform_commission = prop.rent_monthly * 0.075  # RealtyXperience 7.5%
+                agent_personal_commission = prop.rent_monthly * 0.10  # Agent's own commission (example 10%)
+                
+                total_monthly_commission += platform_commission
+                total_annual_commission += platform_commission * 12
+                
+                commission_breakdown.append({
+                    'property': prop.name,
+                    'location': f"{prop.location}, {prop.city}",
+                    'rent': prop.rent_monthly,
+                    'platform_commission': platform_commission,
+                    'agent_commission': agent_personal_commission,
+                    'total_commission': platform_commission + agent_personal_commission
+                })
+        
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Monthly Commission", f"₦{total_monthly_commission:,}")
+        with col2:
+            st.metric("Annual Projection", f"₦{total_annual_commission:,}")
+        with col3:
+            avg_commission = total_monthly_commission / len(agent_properties) if agent_properties else 0
+            st.metric("Avg per Property", f"₦{avg_commission:,.0f}")
+        with col4:
+            st.metric("Properties", len(agent_properties))
+        
+        st.markdown("---")
+        
+        # Commission breakdown
+        st.subheader("Commission Breakdown")
+        
+        st.info("💡 **Note:** This shows the 7.5% platform commission. Your personal agent commission may vary based on your agreement with property owners.")
+        
+        for item in commission_breakdown:
+            with st.expander(f"🏠 {item['property']} - ₦{item['platform_commission']:,.0f}/month"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**Property Details:**")
+                    st.write(f"📍 {item['location']}")
+                    st.write(f"💰 Monthly Rent: ₦{item['rent']:,}")
+                
+                with col2:
+                    st.markdown("**Commission Breakdown:**")
+                    st.write(f"Platform Commission (7.5%): ₦{item['platform_commission']:,}")
+                    st.write(f"Your Commission (10%): ₦{item['agent_commission']:,}")
+                    st.write(f"**Total Monthly: ₦{item['total_commission']:,}**")
+                    st.caption(f"Annual: ₦{item['total_commission'] * 12:,}")
+        
+        st.markdown("---")
+        
+        # Commission settings
+        with st.expander("⚙️ Commission Settings"):
+            st.markdown("**Customize Your Commission Rates**")
+            
+            with st.form("commission_settings"):
+                st.info("These are example rates. Adjust based on your agreements with property owners.")
+                
+                platform_rate = st.slider("Platform Commission %", 0.0, 20.0, 7.5, 0.5)
+                agent_rate = st.slider("Your Personal Commission %", 0.0, 30.0, 10.0, 0.5)
+                
+                if st.form_submit_button("Update Rates"):
+                    st.success("Commission rates updated! (Note: This is for display purposes only)")
+                    st.rerun()
+        
+        if st.button("← Back to Dashboard"):
+            st.session_state.viewing_commission_tracker = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
+def manage_client_portfolio():
+    """Client portfolio management for agents"""
+    st.header("👥 Client Portfolio")
+    
+    st.info("💡 **Note:** In the current system, property owners are your clients. This view helps you organize properties by owner.")
+    
+    db = SessionLocal()
+    try:
+        # Get all properties managed by agent
+        agent_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        
+        if not agent_properties:
+            st.info("No properties yet. Start by listing properties for your clients!")
+            if st.button("← Back to Dashboard"):
+                st.session_state.viewing_client_portfolio = None
+                st.rerun()
+            return
+        
+        # Group properties by owner (for now, all owned by agent, but structure allows expansion)
+        # In future, this could track multiple property owners
+        
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_properties = len(agent_properties)
+        occupied = len([p for p in agent_properties if p.occupancy_status == 'occupied'])
+        total_rent = sum(p.rent_monthly or 0 for p in agent_properties)
+        total_commission = total_rent * 0.075
+        
+        with col1:
+            st.metric("Total Properties", total_properties)
+        with col2:
+            occupancy_rate = (occupied / total_properties * 100) if total_properties > 0 else 0
+            st.metric("Occupancy Rate", f"{occupancy_rate:.0f}%")
+        with col3:
+            st.metric("Total Monthly Rent", f"₦{total_rent:,}")
+        with col4:
+            st.metric("Your Commission", f"₦{total_commission:,}")
+        
+        st.markdown("---")
+        
+        # Property portfolio view
+        st.subheader("Property Portfolio")
+        
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            city_filter = st.selectbox("Filter by City", ["All"] + list(set([p.city for p in agent_properties])))
+        with col2:
+            status_filter = st.selectbox("Filter by Status", ["All", "Occupied", "Vacant"])
+        with col3:
+            sort_by = st.selectbox("Sort by", ["Name", "Rent (High to Low)", "Rent (Low to High)", "Location"])
+        
+        # Apply filters
+        filtered_properties = agent_properties
+        if city_filter != "All":
+            filtered_properties = [p for p in filtered_properties if p.city == city_filter]
+        if status_filter != "All":
+            filtered_properties = [p for p in filtered_properties if p.occupancy_status == status_filter.lower()]
+        
+        # Apply sorting
+        if sort_by == "Name":
+            filtered_properties = sorted(filtered_properties, key=lambda x: x.name)
+        elif sort_by == "Rent (High to Low)":
+            filtered_properties = sorted(filtered_properties, key=lambda x: x.rent_monthly or 0, reverse=True)
+        elif sort_by == "Rent (Low to High)":
+            filtered_properties = sorted(filtered_properties, key=lambda x: x.rent_monthly or 0)
+        elif sort_by == "Location":
+            filtered_properties = sorted(filtered_properties, key=lambda x: x.location)
+        
+        # Display properties
+        for prop in filtered_properties:
+            status_icon = "✅" if prop.occupancy_status == 'occupied' else "⭕"
+            commission = (prop.rent_monthly or 0) * 0.075
+            
+            with st.expander(f"{status_icon} {prop.name} - {prop.location}", expanded=False):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.markdown("**Property Details:**")
+                    st.write(f"📍 {prop.location}, {prop.city}")
+                    st.write(f"🏠 {prop.bedrooms} bed, {prop.bathrooms} bath")
+                    st.write(f"🏗️ {prop.property_type}")
+                    st.write(f"📅 Built: {prop.year_built}")
+                
+                with col2:
+                    st.markdown("**Financial:**")
+                    st.write(f"💰 Rent: ₦{prop.rent_monthly:,}/month" if prop.rent_monthly else "Contact for pricing")
+                    st.write(f"💵 Your Commission: ₦{commission:,}/month")
+                    st.write(f"📊 Annual Commission: ₦{commission * 12:,}")
+                    
+                    st.markdown("**Status:**")
+                    st.write(f"Status: {prop.occupancy_status.title()}")
+                    if prop.current_tenant_name:
+                        st.write(f"👤 Tenant: {prop.current_tenant_name}")
+                
+                with col3:
+                    st.markdown("**Actions:**")
+                    
+                    if st.button("📋 View Details", key=f"view_{prop.id}", use_container_width=True):
+                        st.session_state.viewing_property_id = prop.id
+                        st.session_state.viewing_client_portfolio = None
+                        st.rerun()
+                    
+                    if st.button("💰 Track Rent", key=f"rent_{prop.id}", use_container_width=True):
+                        st.session_state.viewing_rent_tracker = prop.id
+                        st.session_state.viewing_client_portfolio = None
+                        st.rerun()
+                    
+                    if st.button("👤 Manage Tenant", key=f"tenant_{prop.id}", use_container_width=True):
+                        st.session_state.viewing_tenant_manager = prop.id
+                        st.session_state.viewing_client_portfolio = None
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # Portfolio insights
+        with st.expander("📊 Portfolio Insights"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Property Distribution:**")
+                city_counts = {}
+                for prop in agent_properties:
+                    city_counts[prop.city] = city_counts.get(prop.city, 0) + 1
+                for city, count in city_counts.items():
+                    st.write(f"• {city}: {count} properties")
+            
+            with col2:
+                st.markdown("**Performance:**")
+                avg_rent = total_rent / total_properties if total_properties > 0 else 0
+                st.write(f"• Average Monthly Rent: ₦{avg_rent:,.0f}")
+                st.write(f"• Total Portfolio Value: ₦{total_rent * 12:,}/year")
+                st.write(f"• Your Annual Commission: ₦{total_commission * 12:,}")
+        
+        if st.button("← Back to Dashboard"):
+            st.session_state.viewing_client_portfolio = None
+            st.rerun()
+    
+    finally:
+        db.close()
+
 def show_land_upload_form():
     st.header("List Your Land with AI Optimization")
     st.markdown("*Get AI-powered insights and investment optimization recommendations*")
@@ -1794,29 +2388,119 @@ def show_property_tenant_dashboard():
 def show_property_agent_dashboard():
     st.subheader("Property Agent Management Portal")
     
-    # Get properties managed by this agent
+    # Check if managing leads
+    if st.session_state.get('viewing_lead_manager'):
+        manage_leads()
+        return
+    
+    # Check if managing showings
+    if st.session_state.get('viewing_showing_scheduler'):
+        manage_showings()
+        return
+
+    # Check if viewing commission tracker
+    if st.session_state.get('viewing_commission_tracker'):
+        track_commissions()
+        return
+
+   # Check if viewing client portfolio
+    if st.session_state.get('viewing_client_portfolio'):
+        manage_client_portfolio()
+        return
+    
+    # Get properties and data
     db = SessionLocal()
     try:
         agent_properties = db.query(Property).filter(Property.owner_id == st.session_state.current_user_id).all()
+        agent_leads = db.query(Lead).filter(Lead.agent_id == st.session_state.current_user_id).all()
+        agent_showings = db.query(Showing).filter(Showing.agent_id == st.session_state.current_user_id).all()
         
-        col1, col2, col3 = st.columns(3)
+        # Calculate commissions
+        total_commission = 0
+        for prop in agent_properties:
+            if prop.rent_monthly:
+                commission = prop.rent_monthly * 0.075  # 7.5%
+                total_commission += commission
+        
+        # Enhanced Metrics
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             st.metric("Active Listings", len(agent_properties))
         with col2:
-            total_value = sum(p.rent_monthly or 0 for p in agent_properties) * 12  # Annual rental value
-            st.metric("Portfolio Value", f"₦{total_value/1000000:.1f}M" if total_value > 0 else "₦0")
+            active_leads = len([l for l in agent_leads if l.status not in ['closed', 'lost']])
+            st.metric("Active Leads", active_leads)
         with col3:
-            monthly_rent = sum(p.rent_monthly or 0 for p in agent_properties)
-            st.metric("Monthly Rental Income", f"₦{monthly_rent:,}")
+            # Showings this week
+            week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+            showings_this_week = len([s for s in agent_showings if s.showing_date >= week_start and s.status == 'scheduled'])
+            st.metric("Showings This Week", showings_this_week)
+        with col4:
+            st.metric("Monthly Commission", f"₦{total_commission:,}" if total_commission > 0 else "₦0")
+        with col5:
+            closed_deals = len([l for l in agent_leads if l.status == 'closed'])
+            st.metric("Closed Deals", closed_deals)
         
+        st.markdown("---")
+        
+        # Quick Actions
+        st.subheader("Quick Actions")
+        col1, col2, col3, col4 = st.columns(4)       
+        
+        with col1:
+            if st.button("🎯 Manage Leads", use_container_width=True, type="primary"):
+                st.session_state.viewing_lead_manager = True
+                st.rerun()
+        
+        with col2:
+            if st.button("📅 Schedule Showings", use_container_width=True, type="primary"):
+                st.session_state.viewing_showing_scheduler = True
+                st.rerun()
+        
+        with col3:
+            if st.button("💰 View Commissions", use_container_width=True, type="primary"):
+                st.session_state.viewing_commission_tracker = True
+                st.rerun()            
+        
+        with col4:
+            if st.button("👥 Client Portfolio", use_container_width=True, type="primary"):
+                st.session_state.viewing_client_portfolio = True
+                st.rerun()
+
+        st.markdown("---")
+        
+        # Recent Leads
+        if agent_leads:
+            st.markdown("### Recent Leads")
+            recent_leads = sorted(agent_leads, key=lambda x: x.created_at, reverse=True)[:3]
+            
+            for lead in recent_leads:
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f"**{lead.lead_name}** - {lead.status.replace('_', ' ').title()}")
+                with col2:
+                    st.write(f"Budget: ₦{lead.budget_max:,}")
+                with col3:
+                    if st.button("View", key=f"view_lead_{lead.id}"):
+                        st.session_state.viewing_lead_manager = True
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # Property Listings
         if agent_properties:
             st.markdown("### Your Listings")
             for prop in agent_properties[:5]:
                 with st.expander(f"🏠 {prop.name}"):
-                    st.write(f"**Location:** {prop.location}, {prop.city}")
-                    st.write(f"**Rent:** ₦{prop.rent_monthly:,}/month" if prop.rent_monthly else "Sale only")
-                    st.write(f"**Type:** {prop.property_type}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Location:** {prop.location}, {prop.city}")
+                        st.write(f"**Rent:** ₦{prop.rent_monthly:,}/month" if prop.rent_monthly else "Contact for pricing")
+                        st.write(f"**Type:** {prop.property_type}")
+                    with col2:
+                        if prop.rent_monthly:
+                            commission = prop.rent_monthly * 0.075
+                            st.write(f"**Your Commission:** ₦{commission:,}/month")
         else:
             st.info("No properties listed yet. Use 'List Property' to add your first listing!")
     finally:

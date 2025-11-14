@@ -49,6 +49,8 @@ class User(Base):
     messages = relationship("Message", back_populates="user")
     inquiries_sent = relationship("Inquiry", foreign_keys="Inquiry.sender_id", back_populates="sender")
     inquiries_received = relationship("Inquiry", foreign_keys="Inquiry.receiver_id", back_populates="receiver")
+    leads = relationship("Lead", back_populates="agent")
+    showings = relationship("Showing", back_populates="agent")
 
 
 class Property(Base):
@@ -91,6 +93,8 @@ class Property(Base):
     owner = relationship("User", back_populates="properties")
     inquiries = relationship("Inquiry", back_populates="property")
     rent_payments = relationship("RentPayment", back_populates="property")
+    leads = relationship("Lead", back_populates="property")
+    showings = relationship("Showing", back_populates="property")
 
 class RentPayment(Base):
     __tablename__ = "rent_payments"
@@ -114,6 +118,67 @@ class RentPayment(Base):
     
     # Relationship
     property = relationship("Property", back_populates="rent_payments")
+
+class Lead(Base):
+    __tablename__ = "leads"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.id"))
+    
+    # Lead details
+    lead_name = Column(String, nullable=False)
+    phone = Column(String)
+    email = Column(String)
+    status = Column(String, default='new')  # new, contacted, viewing_scheduled, interested, closed, lost
+    
+    # Requirements
+    budget_min = Column(Integer)
+    budget_max = Column(Integer)
+    preferred_location = Column(String)
+    bedrooms_needed = Column(Integer)
+    
+    # Notes and follow-up
+    notes = Column(Text)
+    next_follow_up = Column(DateTime)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_contacted = Column(DateTime)
+    
+    # Relationships
+    agent = relationship("User", back_populates="leads")
+    property = relationship("Property", back_populates="leads")
+    showings = relationship("Showing", back_populates="lead")
+
+class Showing(Base):
+    __tablename__ = "showings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    lead_id = Column(Integer, ForeignKey("leads.id"))
+    
+    # Showing details
+    showing_date = Column(DateTime, nullable=False)
+    status = Column(String, default='scheduled')  # scheduled, completed, cancelled, no_show
+    
+    # Attendees
+    lead_name = Column(String)
+    lead_phone = Column(String)
+    
+    # Notes
+    pre_showing_notes = Column(Text)  # Notes before showing
+    post_showing_notes = Column(Text)  # Notes after showing
+    lead_feedback = Column(String)  # interested, not_interested, needs_time
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    agent = relationship("User", back_populates="showings")
+    property = relationship("Property", back_populates="showings")
+    lead = relationship("Lead", back_populates="showings")
 
 class Land(Base):
     __tablename__ = "lands"
